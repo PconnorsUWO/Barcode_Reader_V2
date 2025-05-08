@@ -1,6 +1,6 @@
 {
   "name": "nextjs",
-  "homepage": "https://github.com/PconnorsUWO/Barcode_Reader_V2",
+  "homepage": "https://pconnorsuwo.github.io/Barcode_Reader_V2",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -8,8 +8,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "deploy": "npm run build && npm run export && gh-pages -d out"
-  },
+    "deploy": "next build && type nul > out/.nojekyll && gh-pages -d out --dotfiles"
+    },
   "dependencies": {
     "@hookform/resolvers": "^3.9.0",
     "@next/swc-wasm-nodejs": "13.5.1",
@@ -69,5 +69,8 @@
     "typescript": "5.2.2",
     "vaul": "^0.9.9",
     "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "gh-pages": "^6.3.0"
   }
 }
