@@ -109,18 +109,6 @@ export function ScanPreview({ scanData, onScanAgain }: ScanPreviewProps) {
               <span className="text-sm font-medium text-muted-foreground">Location</span>
               <span>{scanData.location}</span>
             </div>
-            
-            {scanData.imageUrl && (
-              <div className="mt-4">
-                <span className="text-sm font-medium text-muted-foreground mb-2 block">Scanned Image</span>
-                <div className="relative aspect-video bg-muted rounded-md overflow-hidden">
-                  {/* This would be a real image in production */}
-                  <div className="absolute inset-0 flex items-center justify-center text-muted-foreground">
-                    Image preview would display here
-                  </div>
-                </div>
-              </div>
-            )}
           </div>
         )}
       </CardContent>
