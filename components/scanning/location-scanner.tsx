@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "@/hooks/use-toast";
+import { BarcodeScanner } from "@/components/scanning/barcode-scanner";
 
 interface LocationScannerProps {
   currentLocation: string | null;
@@ -22,19 +23,34 @@ export function LocationScanner({
   const [isScanning, setIsScanning] = useState(false);
 
   const handleLocationScan = () => {
-    // Simulate scanning - in a real app this would interact with a barcode scanner
     setIsScanning(true);
-    setTimeout(() => {
-      // Simulating a successful scan
-      const mockLocation = locationInput || "WH-A123"; // Use input or default mock data
-      onLocationScanned(mockLocation);
-      setIsScanning(false);
-      setLocationInput("");
+  };
+
+  const handleScanSuccess = (decodedText: string) => {
+    // Process the scan result
+    onLocationScanned(decodedText);
+    
+    // Close the scanner
+    setIsScanning(false);
+    
+    // Show toast notification
+    toast({
+      title: "Location Scanned",
+      description: `Successfully scanned location: ${decodedText}`,
+    });
+  };
+
+  const handleScanError = (error: string) => {
+    console.error("Scanning error:", error);
+    // Only show toast for critical errors, not for regular scanning attempts
+    if (error.includes("starting") || error.includes("permission")) {
       toast({
-        title: "Location Scanned",
-        description: `Successfully scanned location: ${mockLocation}`,
+        title: "Scanning Error",
+        description: "Could not access camera. Please check permissions.",
+        variant: "destructive",
       });
-    }, 1500);
+      setIsScanning(false);
+    }
   };
 
   const handleManualEntry = (e: React.FormEvent) => {
@@ -94,17 +110,24 @@ export function LocationScanner({
           <Button type="submit" variant="outline">Set</Button>
         </form>
         
-        <div className="flex justify-center">
-          <Button 
-            onClick={handleLocationScan}
-            disabled={isScanning}
-            size="lg" 
-            className="gap-2"
-          >
-            <Barcode className="h-5 w-5" />
-            {isScanning ? "Scanning..." : "Scan Location Barcode"}
-          </Button>
-        </div>
+        {isScanning ? (
+          <BarcodeScanner 
+            onScanSuccess={handleScanSuccess}
+            onScanError={handleScanError}
+            onClose={() => setIsScanning(false)}
+          />
+        ) : (
+          <div className="flex justify-center">
+            <Button 
+              onClick={handleLocationScan}
+              size="lg" 
+              className="gap-2"
+            >
+              <Barcode className="h-5 w-5" />
+              Scan Location Barcode
+            </Button>
+          </div>
+        )}
       </CardContent>
     </Card>
   );

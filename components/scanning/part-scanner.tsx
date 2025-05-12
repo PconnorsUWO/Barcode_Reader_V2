@@ -7,7 +7,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { CameraModal } from "@/components/scanning/camera-modal";
 import { toast } from "@/hooks/use-toast";
 import { ScanType } from "@/lib/types";
-import { scanBarcode, scanWithOCR } from "@/lib/scan-utils";
+import { scanWithOCR } from "@/lib/scan-utils";
+import { BarcodeScanner } from "@/components/scanning/barcode-scanner";
 
 interface PartScannerProps {
   currentLocation: string;
@@ -16,38 +17,42 @@ interface PartScannerProps {
 
 export function PartScanner({ currentLocation, onPartScanned }: PartScannerProps) {
   const [isCameraOpen, setIsCameraOpen] = useState(false);
+  const [isBarcodeScannerOpen, setIsBarcodeScannerOpen] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
 
-  const handleScanBarcode = async () => {
-    setIsScanning(true);
-    try {
-      // In a real app, this would connect to a barcode scanner
-      const scanResult = await scanBarcode();
-      
-      const scanData: ScanType = {
-        id: Math.random().toString(36).substring(2, 9),
-        partNumber: scanResult.partNumber,
-        location: currentLocation,
-        scanMethod: "Barcode",
-        timestamp: new Date().toISOString(),
-        status: "Pending",
-        scannedBy: "John Doe",
-      };
-      
-      onPartScanned(scanData);
+  const handleScanSuccess = (decodedText: string) => {
+    // Create scan data
+    const scanData: ScanType = {
+      id: Math.random().toString(36).substring(2, 9),
+      partNumber: decodedText,
+      location: currentLocation,
+      scanMethod: "Barcode",
+      timestamp: new Date().toISOString(),
+    };
+    
+    // Process the scan
+    onPartScanned(scanData);
+    
+    // Close the scanner
+    setIsBarcodeScannerOpen(false);
+    
+    // Show toast notification
+    toast({
+      title: "Part Scanned",
+      description: `Successfully scanned part #${decodedText}`,
+    });
+  };
+
+  const handleScanError = (error: string) => {
+    console.error("Scanning error:", error);
+    // Only show toast for critical errors, not for regular scanning attempts
+    if (error.includes("starting") || error.includes("permission")) {
       toast({
-        title: "Part Scanned",
-        description: `Successfully scanned part #${scanResult.partNumber}`,
-      });
-    } catch (error) {
-      console.error(error);
-      toast({
-        title: "Scan Failed",
-        description: "Unable to scan barcode. Please try again.",
+        title: "Scanning Error",
+        description: "Could not access camera. Please check permissions.",
         variant: "destructive",
       });
-    } finally {
-      setIsScanning(false);
+      setIsBarcodeScannerOpen(false);
     }
   };
 
@@ -56,7 +61,6 @@ export function PartScanner({ currentLocation, onPartScanned }: PartScannerProps
     setIsScanning(true);
     
     try {
-      // Simulate OCR processing
       const ocrResult = await scanWithOCR(imageSrc);
       
       const scanData: ScanType = {
@@ -65,10 +69,7 @@ export function PartScanner({ currentLocation, onPartScanned }: PartScannerProps
         location: currentLocation,
         scanMethod: "OCR",
         timestamp: new Date().toISOString(),
-        status: "Pending",
-        scannedBy: "John Doe",
         vin: ocrResult.vin || undefined,
-        imageUrl: imageSrc,
       };
       
       onPartScanned(scanData);
@@ -98,31 +99,39 @@ export function PartScanner({ currentLocation, onPartScanned }: PartScannerProps
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Button
-              onClick={handleScanBarcode}
-              disabled={isScanning}
-              size="lg"
-              className="h-24 text-lg"
-            >
-              <div className="flex flex-col items-center gap-2">
-                <Barcode className="h-6 w-6" />
-                <span>{isScanning ? "Scanning..." : "Scan Barcode"}</span>
-              </div>
-            </Button>
-            <Button
-              onClick={() => setIsCameraOpen(true)}
-              disabled={isScanning}
-              variant="outline"
-              size="lg"
-              className="h-24 text-lg"
-            >
-              <div className="flex flex-col items-center gap-2">
-                <Camera className="h-6 w-6" />
-                <span>Capture Label</span>
-              </div>
-            </Button>
-          </div>
+          {isBarcodeScannerOpen ? (
+            <BarcodeScanner
+              onScanSuccess={handleScanSuccess}
+              onScanError={handleScanError}
+              onClose={() => setIsBarcodeScannerOpen(false)}
+            />
+          ) : (
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Button
+                onClick={() => setIsBarcodeScannerOpen(true)}
+                disabled={isScanning}
+                size="lg"
+                className="h-24 text-lg"
+              >
+                <div className="flex flex-col items-center gap-2">
+                  <Barcode className="h-6 w-6" />
+                  <span>Scan Barcode</span>
+                </div>
+              </Button>
+              <Button
+                onClick={() => setIsCameraOpen(true)}
+                disabled={isScanning}
+                variant="outline"
+                size="lg"
+                className="h-24 text-lg"
+              >
+                <div className="flex flex-col items-center gap-2">
+                  <Camera className="h-6 w-6" />
+                  <span>Capture Label</span>
+                </div>
+              </Button>
+            </div>
+          )}
         </CardContent>
       </Card>
       

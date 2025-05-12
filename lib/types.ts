@@ -1,13 +1,12 @@
+import { Html5QrcodeSupportedFormats } from "html5-qrcode";
+
 export interface ScanType {
   id: string;
   partNumber: string;
   location: string;
   timestamp: string;
   scanMethod: "Barcode" | "OCR";
-  status: "Pending" | "Completed" | "Failed";
-  scannedBy: string;
   vin?: string;
-  imageUrl?: string;
 }
 
 export interface BarcodeResult {
@@ -17,4 +16,9 @@ export interface BarcodeResult {
 export interface OCRResult {
   partNumber: string;
   vin?: string;
+}
+
+export interface QrCodeFormat {
+  format: Html5QrcodeSupportedFormats;
+  displayName: string;
 }

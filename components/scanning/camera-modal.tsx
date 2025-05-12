@@ -66,7 +66,6 @@ export function CameraModal({ isOpen, onClose, onImageCaptured }: CameraModalPro
         const imageSrc = canvas.toDataURL("image/png");
         setCapturedImage(imageSrc);
         
-        // Stop camera after capture
         const stream = video.srcObject as MediaStream;
         if (stream) {
           stream.getTracks().forEach(track => track.stop());

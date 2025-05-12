@@ -1,13 +1,35 @@
 import { ScanType } from "@/lib/types";
 
-// Simulated API endpoint for fetching scan history
+// base URL for the API
+const API_BASE_URL = "https://scans-prod.us-east-2.elasticbeanstalk.com";
+
+// Fetch all scans from the API
 export async function fetchScans(): Promise<ScanType[]> {
-  // In a real app, this would be a fetch call to your API
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      resolve(mockScanData);
-    }, 1000);
-  });
+  try {
+    const response = await fetch(`${API_BASE_URL}/scans`);
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error ${response.status}`);
+    }
+    
+    const data = await response.json();
+    
+    // Transform data if needed to match ScanType structure
+    return data.map((scan: any) => ({
+      id: scan.id || scan._id || String(Math.random()).slice(2),
+      partNumber: scan.barcode || scan.part_number,
+      location: scan.location || "Unknown",
+      timestamp: scan.timestamp || scan.created_at || new Date().toISOString(),
+      scanMethod: scan.scanMethod || scan.scan_method || "Barcode",
+      status: scan.status || "Completed",
+      scannedBy: scan.scannedBy || scan.scanned_by || "System",
+      vin: scan.vin || undefined,
+      imageUrl: scan.imageUrl || scan.image_url
+    }));
+  } catch (error) {
+    console.error("Error fetching scans:", error);
+    return mockScanData; 
+  }
 }
 
 // Simulated API endpoint for submitting a new scan
@@ -29,8 +51,6 @@ const mockScanData: ScanType[] = [
     location: "WH-A123",
     timestamp: new Date(Date.now() - 1000 * 60 * 30).toISOString(), // 30 minutes ago
     scanMethod: "Barcode",
-    status: "Completed",
-    scannedBy: "John Doe"
   },
   {
     id: "def456",
@@ -38,8 +58,6 @@ const mockScanData: ScanType[] = [
     location: "WH-B456",
     timestamp: new Date(Date.now() - 1000 * 60 * 120).toISOString(), // 2 hours ago
     scanMethod: "OCR",
-    status: "Completed",
-    scannedBy: "Jane Smith",
     vin: "1HGCM82633A123456"
   },
   {
@@ -48,8 +66,6 @@ const mockScanData: ScanType[] = [
     location: "WH-C789",
     timestamp: new Date(Date.now() - 1000 * 60 * 60 * 5).toISOString(), // 5 hours ago
     scanMethod: "Barcode",
-    status: "Failed",
-    scannedBy: "John Doe"
   },
   {
     id: "jkl012",
@@ -57,8 +73,7 @@ const mockScanData: ScanType[] = [
     location: "WH-A123",
     timestamp: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(), // 1 day ago
     scanMethod: "OCR",
-    status: "Completed",
-    scannedBy: "Jane Smith",
     vin: "5XYZU3LB5DG123456"
   }
 ];
+
