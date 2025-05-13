@@ -6,6 +6,9 @@ export interface ScanType {
   location: string;
   timestamp: string;
   scanMethod: "Barcode" | "OCR";
+  status?: string;   // Add this property
+  scannedBy?: string;  // Add this property
+  imageUrl?: string;  // Add this property
   vin?: string;
 }
 
