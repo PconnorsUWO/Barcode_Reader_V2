@@ -1,5 +1,5 @@
 1:HL["/Barcode_Reader_V2/_next/static/css/a8aaf1191d05616d.css","style"]
-0:["jZEF2Tc9pO8GdmWc1s161",[[["",{"children":["history",{"children":["__PAGE__",{}]}]},"$undefined","$undefined",true],"$L2",[[["$","link","0",{"rel":"stylesheet","href":"/Barcode_Reader_V2/_next/static/css/a8aaf1191d05616d.css","precedence":"next"}]],"$L3"]]]]
+0:["jnm8n8I95pYMrRnIb206l",[[["",{"children":["history",{"children":["__PAGE__",{}]}]},"$undefined","$undefined",true],"$L2",[[["$","link","0",{"rel":"stylesheet","href":"/Barcode_Reader_V2/_next/static/css/a8aaf1191d05616d.css","precedence":"next"}]],"$L3"]]]]
 4:I{"id":384,"chunks":["147:static/chunks/147-864f86531cd8571c.js","675:static/chunks/675-20ae2ff0a431db38.js","261:static/chunks/261-1df37116fec945cb.js","185:static/chunks/app/layout-0ac9889daf78f8d0.js"],"name":"ThemeProvider","async":false}
 5:I{"id":4724,"chunks":["147:static/chunks/147-864f86531cd8571c.js","675:static/chunks/675-20ae2ff0a431db38.js","261:static/chunks/261-1df37116fec945cb.js","185:static/chunks/app/layout-0ac9889daf78f8d0.js"],"name":"","async":false}
 6:I{"id":4524,"chunks":["147:static/chunks/147-864f86531cd8571c.js","675:static/chunks/675-20ae2ff0a431db38.js","261:static/chunks/261-1df37116fec945cb.js","185:static/chunks/app/layout-0ac9889daf78f8d0.js"],"name":"ModeToggle","async":false}
