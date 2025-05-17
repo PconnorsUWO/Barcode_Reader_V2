@@ -1,14 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { Barcode, Camera, Scan } from "lucide-react";
+import { Barcode, Camera } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { CameraModal } from "@/components/scanning/camera-modal";
 import { toast } from "@/hooks/use-toast";
 import { ScanType } from "@/lib/types";
-import { scanWithOCR } from "@/lib/scan-utils";
 import { BarcodeScanner } from "@/components/scanning/barcode-scanner";
+import { OcrResults } from "@/lib/ocr-service"; // Import OcrResults type
 
 interface PartScannerProps {
   currentLocation: string;
@@ -56,26 +56,35 @@ export function PartScanner({ currentLocation, onPartScanned }: PartScannerProps
     }
   };
 
-  const handleImageCaptured = async (imageSrc: string) => {
+  const handleImageCaptured = async (imageSrc: string, ocrData?: OcrResults) => {
     setIsCameraOpen(false);
     setIsScanning(true);
     
     try {
-      const ocrResult = await scanWithOCR(imageSrc);
+      // Use the ocrData directly if available
+      if (!ocrData || !ocrData.box1Text) {
+        toast({
+          title: "Processing Failed",
+          description: "No part number detected from OCR. Please try again or enter manually.",
+          variant: "destructive",
+        });
+        setIsScanning(false);
+        return;
+      }
       
       const scanData: ScanType = {
         id: Math.random().toString(36).substring(2, 9),
-        partNumber: ocrResult.partNumber,
+        partNumber: ocrData.box1Text, // Use text from box1 as part number
         location: currentLocation,
         scanMethod: "OCR",
         timestamp: new Date().toISOString(),
-        vin: ocrResult.vin || undefined,
+        vin: ocrData.box2Text || undefined, // Use text from box2 as VIN
       };
       
       onPartScanned(scanData);
       toast({
         title: "Image Processed",
-        description: `Successfully extracted part #${ocrResult.partNumber}`,
+        description: `Successfully extracted part #${ocrData.box1Text}`,
       });
     } catch (error) {
       console.error(error);
