@@ -5,7 +5,6 @@ import { Barcode, MapPin, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { toast } from "@/hooks/use-toast";
 import { BarcodeScanner } from "@/components/scanning/barcode-scanner";
 
 interface LocationScannerProps {
@@ -34,21 +33,14 @@ export function LocationScanner({
     setIsScanning(false);
     
     // Show toast notification
-    toast({
-      title: "Location Scanned",
-      description: `Successfully scanned location: ${decodedText}`,
-    });
+
   };
 
   const handleScanError = (error: string) => {
     console.error("Scanning error:", error);
     // Only show toast for critical errors, not for regular scanning attempts
     if (error.includes("starting") || error.includes("permission")) {
-      toast({
-        title: "Scanning Error",
-        description: "Could not access camera. Please check permissions.",
-        variant: "destructive",
-      });
+
       setIsScanning(false);
     }
   };
@@ -58,10 +50,7 @@ export function LocationScanner({
     if (locationInput.trim()) {
       onLocationScanned(locationInput.trim());
       setLocationInput("");
-      toast({
-        title: "Location Set",
-        description: `Location manually set to: ${locationInput.trim()}`,
-      });
+
     }
   };
 

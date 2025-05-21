@@ -1,12 +1,20 @@
 import { ScanType } from "@/lib/types";
 
 // base URL for the API
-const API_BASE_URL = "https://scans-prod.us-east-2.elasticbeanstalk.com";
+const API_BASE_URL = "https://ce4e-2607-fea8-439d-ba00-f1be-7537-2008-afdb.ngrok-free.app/api";
 
-// Fetch all scans from the API
-export async function fetchScans(): Promise<ScanType[]> {
+// Fetch scans from the API
+export async function fetchScans(limit?: number): Promise<ScanType[]> {
   try {
-    const response = await fetch(`${API_BASE_URL}/scans`);
+    let url = `${API_BASE_URL}/scans`;
+    if (limit !== undefined && limit > 0) {
+      url += `?limit=${limit}`;
+    }
+    const response = await fetch(url, {
+      headers: {
+        'ngrok-skip-browser-warning': 'true'
+      }
+    });
     
     if (!response.ok) {
       throw new Error(`HTTP error ${response.status}`);
@@ -14,33 +22,147 @@ export async function fetchScans(): Promise<ScanType[]> {
     
     const data = await response.json();
     
-    // Transform data if needed to match ScanType structure
+    // Transform data to match ScanType structure
     return data.map((scan: any) => ({
-      id: scan.id || scan._id || String(Math.random()).slice(2),
-      partNumber: scan.barcode || scan.part_number,
-      location: scan.location || "Unknown",
-      timestamp: scan.timestamp || scan.created_at || new Date().toISOString(),
-      scanMethod: scan.scanMethod || scan.scan_method || "Barcode",
-      status: scan.status || "Completed",
-      scannedBy: scan.scannedBy || scan.scanned_by || "System",
+      id: String(scan.id), // Ensure id is a string
+      partNumber: scan.part_number,
+      location: scan.location,
+      timestamp: scan.date_added, // API uses date_added
+      status: scan.scan_type === "IN" ? "In Stock" : scan.scan_type, // Map scan_type to status
       vin: scan.vin || undefined,
-      imageUrl: scan.imageUrl || scan.image_url
+      // Add other ScanType fields if necessary, with defaults or from API
+      scannedBy: scan.scanned_by || "N/A", // Example if API provides it
+      scanMethod: scan.scan_method || "Barcode", // Example
     }));
   } catch (error) {
     console.error("Error fetching scans:", error);
-    return mockScanData; 
+    return mockScanData.slice(0, limit || mockScanData.length); 
   }
 }
 
-// Simulated API endpoint for submitting a new scan
-export async function submitScan(scanData: ScanType): Promise<{ success: boolean }> {
-  // In a real app, this would post to your API endpoint
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      console.log("Scan submitted:", scanData);
-      resolve({ success: true });
-    }, 1500);
-  });
+// Interface for the data structure expected by the submitScan function
+interface SubmitScanPayload {
+  partNumber: string;
+  location: string;
+  vin?: string;
+}
+
+// Updated API endpoint for submitting a new scan
+export async function submitScan(payload: SubmitScanPayload): Promise<{ success: boolean; data?: any; error?: string }> {
+  try {
+    const backendPayload = {
+      part_number: payload.partNumber,
+      location: payload.location,
+      vin: payload.vin || null, // Send null if VIN is not present or empty
+    };
+
+    console.log("[API] Attempting to submit scan. URL:", `${API_BASE_URL}/send_scan`, "Payload:", backendPayload); // Added log
+
+    const response = await fetch(`${API_BASE_URL}/send_scan`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'ngrok-skip-browser-warning': 'true'
+      },
+      body: JSON.stringify(backendPayload),
+    });
+
+    if (!response.ok) {
+      let errorMessage = `HTTP error ${response.status}`;
+      try {
+        const errorData = await response.json();
+        errorMessage = errorData.message || errorMessage;
+      } catch (e) {
+        // Ignore if response is not JSON
+      }
+      console.error("Error submitting scan:", errorMessage);
+      return { success: false, error: errorMessage };
+    }
+
+    const responseData = await response.json();
+    console.log("Scan submitted successfully:", responseData);
+    return { success: true, data: responseData };
+
+  } catch (error) {
+    console.error("[API] Fetch error in submitScan:", error); // Enhanced log
+    return { success: false, error: error instanceof Error ? error.message : "An unknown error occurred" };
+  }
+}
+
+// Delete a scan by its ID
+export async function deleteScanById(scanId: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/scan/${scanId}`, {
+      method: 'DELETE',
+      headers: {
+        'ngrok-skip-browser-warning': 'true'
+      }
+    });
+
+    if (!response.ok) {
+      let errorMessage = `HTTP error ${response.status}`;
+      try {
+        const errorData = await response.json();
+        errorMessage = errorData.message || errorMessage;
+      } catch (e) {
+        // Ignore if response is not JSON (e.g., for 204 No Content)
+      }
+      if (response.status === 204) { // Successfully deleted, no content
+        return { success: true };
+      }
+      console.error("Error deleting scan:", errorMessage);
+      return { success: false, error: errorMessage };
+    }
+    // Handle 204 No Content specifically, as it might not have a JSON body
+    if (response.status === 204) {
+        return { success: true };
+    }
+
+    // For other success statuses that might return data (though DELETE usually doesn't)
+    // const responseData = await response.json(); 
+    // console.log("Scan deleted successfully:", responseData);
+    return { success: true };
+
+  } catch (error) {
+    console.error("[API] Fetch error in deleteScanById:", error);
+    return { success: false, error: error instanceof Error ? error.message : "An unknown error occurred" };
+  }
+}
+
+// Delete a part by its part number
+export async function deletePartByPartNumber(partID: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/part/number/${partID}`, {
+      method: 'DELETE',
+      headers: {
+        'ngrok-skip-browser-warning': 'true'
+      }
+    });
+
+    if (!response.ok) {
+      let errorMessage = `HTTP error ${response.status}`;
+      try {
+        const errorData = await response.json();
+        errorMessage = errorData.message || errorMessage;
+      } catch (e) {
+        // Ignore if response is not JSON
+      }
+      if (response.status === 204) { // Successfully deleted, no content
+        return { success: true };
+      }
+      console.error("Error deleting part:", errorMessage);
+      return { success: false, error: errorMessage };
+    }
+     // Handle 204 No Content specifically
+    if (response.status === 204) {
+        return { success: true };
+    }
+    return { success: true };
+
+  } catch (error) {
+    console.error("[API] Fetch error in deletePartByPartNumber:", error);
+    return { success: false, error: error instanceof Error ? error.message : "An unknown error occurred" };
+  }
 }
 
 // Mock data for scan history

@@ -5,14 +5,17 @@ import { Barcode, Camera } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { CameraModal } from "@/components/scanning/camera-modal";
-import { toast } from "@/hooks/use-toast";
 import { ScanType } from "@/lib/types";
 import { BarcodeScanner } from "@/components/scanning/barcode-scanner";
-import { OcrResults } from "@/lib/ocr-service"; // Import OcrResults type
 
 interface PartScannerProps {
   currentLocation: string;
   onPartScanned: (scanData: ScanType) => void;
+}
+
+interface ocrResults {
+  box1Text: string;
+  box2Text?: string;
 }
 
 export function PartScanner({ currentLocation, onPartScanned }: PartScannerProps) {
@@ -36,38 +39,26 @@ export function PartScanner({ currentLocation, onPartScanned }: PartScannerProps
     // Close the scanner
     setIsBarcodeScannerOpen(false);
     
-    // Show toast notification
-    toast({
-      title: "Part Scanned",
-      description: `Successfully scanned part #${decodedText}`,
-    });
+
   };
 
   const handleScanError = (error: string) => {
     console.error("Scanning error:", error);
     // Only show toast for critical errors, not for regular scanning attempts
     if (error.includes("starting") || error.includes("permission")) {
-      toast({
-        title: "Scanning Error",
-        description: "Could not access camera. Please check permissions.",
-        variant: "destructive",
-      });
+      
       setIsBarcodeScannerOpen(false);
     }
   };
 
-  const handleImageCaptured = async (imageSrc: string, ocrData?: OcrResults) => {
+  const handleImageCaptured = async (imageSrc: string, ocrData?: ocrResults) => {
     setIsCameraOpen(false);
     setIsScanning(true);
     
     try {
       // Use the ocrData directly if available
       if (!ocrData || !ocrData.box1Text) {
-        toast({
-          title: "Processing Failed",
-          description: "No part number detected from OCR. Please try again or enter manually.",
-          variant: "destructive",
-        });
+
         setIsScanning(false);
         return;
       }
@@ -82,17 +73,10 @@ export function PartScanner({ currentLocation, onPartScanned }: PartScannerProps
       };
       
       onPartScanned(scanData);
-      toast({
-        title: "Image Processed",
-        description: `Successfully extracted part #${ocrData.box1Text}`,
-      });
+
     } catch (error) {
       console.error(error);
-      toast({
-        title: "Processing Failed",
-        description: "Unable to process image. Please try again.",
-        variant: "destructive",
-      });
+
     } finally {
       setIsScanning(false);
     }

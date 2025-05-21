@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { toast } from "@/hooks/use-toast";
 import { ScanType } from "@/lib/types";
 import { useState } from "react";
 import { submitScan } from "@/lib/api";
@@ -13,9 +12,11 @@ import { submitScan } from "@/lib/api";
 interface ScanPreviewProps {
   scanData: ScanType;
   onScanAgain: () => void;
+  // Add a prop for showing toast notifications if you have a toast system
+  // showToast: (message: string, type: 'success' | 'error') => void;
 }
 
-export function ScanPreview({ scanData, onScanAgain }: ScanPreviewProps) {
+export function ScanPreview({ scanData, onScanAgain /*, showToast */ }: ScanPreviewProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editedData, setEditedData] = useState({
@@ -25,36 +26,35 @@ export function ScanPreview({ scanData, onScanAgain }: ScanPreviewProps) {
 
   const handleSave = () => {
     setIsEditing(false);
-    toast({
-      title: "Changes Saved",
-      description: "Scan data has been updated.",
-    });
+    // Optionally, you could update scanData here if it's part of a larger state
+    // For now, editedData is used directly for submission
   };
 
   const handleSubmit = async () => {
     setIsSubmitting(true);
     try {
-      // In a real app, this would send data to your API
-      await submitScan({
-        ...scanData,
+      const payloadToSubmit = {
         partNumber: editedData.partNumber,
-        vin: editedData.vin || undefined,
-      });
-      
-      toast({
-        title: "Scan Submitted",
-        description: "The scan has been successfully recorded.",
-      });
-      
-      // Return to scanning view
-      onScanAgain();
+        location: scanData.location, // Location comes from the original scanData
+        vin: editedData.vin || undefined, // Send undefined if empty, api.ts will handle null
+      };
+
+      console.log("[ScanPreview] handleSubmit called. Payload to submit:", payloadToSubmit); // Added log
+
+      const result = await submitScan(payloadToSubmit);
+
+      if (result.success) {
+        // showToast("Scan submitted successfully!", "success"); // Example toast
+        console.log("Scan submitted successfully, API response:", result.data);
+        // Return to scanning view
+        onScanAgain();
+      } else {
+        // showToast(`Error: ${result.error || "Failed to submit scan."}`, "error"); // Example toast
+        console.error("Failed to submit scan:", result.error);
+      }
     } catch (error) {
-      console.error(error);
-      toast({
-        title: "Submission Failed",
-        description: "Unable to submit scan. Please try again.",
-        variant: "destructive",
-      });
+      console.error("Error during submission process:", error);
+      // showToast("An unexpected error occurred.", "error"); // Example toast
     } finally {
       setIsSubmitting(false);
     }
@@ -78,7 +78,7 @@ export function ScanPreview({ scanData, onScanAgain }: ScanPreviewProps) {
               <Input
                 id="partNumber"
                 value={editedData.partNumber}
-                onChange={(e) => setEditedData({ ...editedData, partNumber: e.target.value })}
+                onChange={(e) => setEditedData({ ...editedData, partNumber: e.target.value.toUpperCase() })} // Convert to uppercase if needed
               />
             </div>
             <div className="space-y-2">
@@ -86,8 +86,9 @@ export function ScanPreview({ scanData, onScanAgain }: ScanPreviewProps) {
               <Input
                 id="vin"
                 value={editedData.vin}
-                onChange={(e) => setEditedData({ ...editedData, vin: e.target.value })}
-                placeholder="Vehicle Identification Number"
+                onChange={(e) => setEditedData({ ...editedData, vin: e.target.value.toUpperCase() })} // Convert to uppercase
+                placeholder="17-character alphanumeric"
+                maxLength={17}
               />
             </div>
           </div>
@@ -98,7 +99,8 @@ export function ScanPreview({ scanData, onScanAgain }: ScanPreviewProps) {
               <span className="text-lg font-bold">{editedData.partNumber}</span>
             </div>
             
-            {(editedData.vin || scanData.vin) && (
+            {/* Display VIN if it exists in editedData or original scanData */}
+            {(editedData.vin || (scanData.vin && !isEditing)) && (
               <div className="flex flex-col gap-1">
                 <span className="text-sm font-medium text-muted-foreground">VIN</span>
                 <span className="font-mono">{editedData.vin || scanData.vin}</span>
