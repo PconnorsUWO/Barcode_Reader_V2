@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState, useEffect, ChangeEvent } from "react";
-import { X, Camera, CheckCircle, SkipForward } from "lucide-react";
+import { X, Camera, CheckCircle } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -9,7 +9,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import * as Tesseract from "tesseract.js";
+import { processImageOCR } from "@/lib/api";
 
 interface CameraModalProps {
   isOpen: boolean;
@@ -20,32 +20,27 @@ interface CameraModalProps {
   ) => void;
 }
 
-/** Single scanning box expressed as fractions (0–1) of width/height */
-const SCAN_BOX = { x: 0.1, y: 0.35, width: 0.8, height: 0.25 } as const;
-
-type Step = "part" | "vin" | "preview";
+type Step = "camera" | "preview";
 
 export function CameraModal({ isOpen, onClose, onImageCaptured }: CameraModalProps) {
   /* ─────────────── Component state ─────────────── */
-  const [step, setStep] = useState<Step>("part");
+  const [step, setStep] = useState<Step>("camera");
   const [isCameraActive, setIsCameraActive] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
 
-  const [partImage, setPartImage] = useState<string | null>(null);
-  const [vinImage, setVinImage] = useState<string | null>(null);
+  const [capturedImage, setCapturedImage] = useState<string | null>(null);
   const [partText, setPartText] = useState("");
   const [vinText, setVinText] = useState("");
 
   const videoRef = useRef<HTMLVideoElement>(null);
-  const frameCanvasRef = useRef<HTMLCanvasElement>(null);
-  const boxCanvasRef = useRef<HTMLCanvasElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
 
   /* ─────────────── Camera lifecycle ─────────────── */
   useEffect(() => {
     let stream: MediaStream | null = null;
 
     const setupCamera = async () => {
-      if (isOpen && (step === "part" || step === "vin")) {
+      if (isOpen && step === "camera") {
         try {
           stream = await navigator.mediaDevices.getUserMedia({
             video: { facingMode: "environment" },
@@ -70,83 +65,72 @@ export function CameraModal({ isOpen, onClose, onImageCaptured }: CameraModalPro
     };
   }, [isOpen, step]);
 
-  /* ─────────────── OCR helper ─────────────── */
-  const runOcr = async (canvas: HTMLCanvasElement): Promise<string> => {
-    try {
-      const result = await Tesseract.recognize(canvas, "eng", {
-        logger: (m) => console.log("OCR progress:", m),
-      });
-      return result.data.text.trim();
-    } catch (err) {
-      console.error("OCR error:", err);
-      return "";
-    }
+  /* ─────────────── Convert canvas to File ─────────────── */
+  const canvasToFile = (canvas: HTMLCanvasElement): File => {
+    return new Promise((resolve) => {
+      canvas.toBlob((blob) => {
+        if (blob) {
+          resolve(new File([blob], 'capture.jpg', { type: 'image/jpeg' }));
+        }
+      }, 'image/jpeg', 0.8);
+    }) as Promise<File>;
   };
 
-  /* ─────────────── Capture current frame & OCR ─────────────── */
+  /* ─────────────── Capture image and process with backend OCR ─────────────── */
   const handleCapture = async () => {
-    if (!videoRef.current || !frameCanvasRef.current || !boxCanvasRef.current) return;
+    if (!videoRef.current || !canvasRef.current) return;
 
     const video = videoRef.current;
-    const frameCanvas = frameCanvasRef.current;
-    const boxCanvas = boxCanvasRef.current;
+    const canvas = canvasRef.current;
 
     setIsProcessing(true);
 
-    // Draw entire frame (kept so we can return something on confirm)
-    frameCanvas.width = video.videoWidth;
-    frameCanvas.height = video.videoHeight;
-    frameCanvas.getContext("2d")?.drawImage(video, 0, 0, frameCanvas.width, frameCanvas.height);
+    // Capture the frame
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    canvas.getContext("2d")?.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-    // Extract scan box region into its own canvas for OCR
-    const sx = SCAN_BOX.x * video.videoWidth;
-    const sy = SCAN_BOX.y * video.videoHeight;
-    const sWidth = SCAN_BOX.width * video.videoWidth;
-    const sHeight = SCAN_BOX.height * video.videoHeight;
-
-    boxCanvas.width = sWidth;
-    boxCanvas.height = sHeight;
-    boxCanvas.getContext("2d")?.drawImage(video, sx, sy, sWidth, sHeight, 0, 0, sWidth, sHeight);
-
-    // Stop the stream so the camera view freezes (gives visual feedback)
+    // Stop the stream
     (video.srcObject as MediaStream)?.getTracks().forEach((t) => t.stop());
     setIsCameraActive(false);
 
-    const ocrText = (await runOcr(boxCanvas)).replace(/\s+/g, "");
+    // Get image data
+    const imageDataUrl = canvas.toDataURL("image/jpeg", 0.8);
+    setCapturedImage(imageDataUrl);
 
-    if (step === "part") {
-      setPartImage(frameCanvas.toDataURL("image/png"));
-      setPartText(ocrText);
-      setStep("vin");
-    } else if (step === "vin") {
-      setVinImage(frameCanvas.toDataURL("image/png"));
-      setVinText(ocrText);
-      setStep("preview");
+    // Convert to File and send to backend OCR
+    try {
+      const imageFile = await canvasToFile(canvas);
+      const ocrResult = await processImageOCR(imageFile);
+
+      if (ocrResult.success) {
+        setVinText(ocrResult.vin || "");
+        setPartText(ocrResult.partNumber || "");
+      } else {
+        console.error("OCR processing failed:", ocrResult.error);
+        // Keep empty values, user can manually enter
+      }
+    } catch (error) {
+      console.error("Error processing image:", error);
     }
 
+    setStep("preview");
     setIsProcessing(false);
   };
 
   /* ─────────────── Handlers ─────────────── */
-  const handleSkipVin = () => {
-    setVinText("");
-    setStep("preview");
-  };
-
-  const handleRetakeAll = () => {
-    setStep("part");
-    setPartImage(null);
-    setVinImage(null);
+  const handleRetake = () => {
+    setStep("camera");
+    setCapturedImage(null);
     setPartText("");
     setVinText("");
   };
 
   const handleConfirm = () => {
-    if (!partImage) return; // should never happen
+    if (!capturedImage) return;
 
-    onImageCaptured(partImage, { box1Text: partText, box2Text: vinText }); // Changed from { box1Text: vinText, box2Text: partText }
-    handleRetakeAll();
-    // onClose(); // No explicit onClose needed here as PartScanner's handleImageCaptured will close it
+    onImageCaptured(capturedImage, { box1Text: partText, box2Text: vinText });
+    handleRetake();
   };
 
   const handleChange = (key: "vin" | "part") => (e: ChangeEvent<HTMLInputElement>) => {
@@ -154,91 +138,90 @@ export function CameraModal({ isOpen, onClose, onImageCaptured }: CameraModalPro
     else setPartText(e.target.value);
   };
 
-  /* ─────────────── Shared camera overlay ─────────────── */
+  /* ─────────────── Camera overlay ─────────────── */
   const CameraOverlay = (
     <div className="flex flex-col">
       <div className="aspect-[4/5] bg-black relative">
         <video ref={videoRef} autoPlay playsInline className="w-full h-full object-cover" />
-
-        {/* Scan box */}
-        <div
-          className="absolute border-2 border-red-500 pointer-events-none"
-          style={{
-            left: `${SCAN_BOX.x * 100}%`,
-            top: `${SCAN_BOX.y * 100}%`,
-            width: `${SCAN_BOX.width * 100}%`,
-            height: `${SCAN_BOX.height * 100}%`,
-          }}
-        />
+        
+        {/* Viewfinder overlay */}
+        <div className="absolute inset-0 pointer-events-none">
+          <div className="w-full h-full border-2 border-white/20 flex items-center justify-center">
+            <div className="w-3/4 h-1/3 border-2 border-red-500 bg-red-500/10 rounded-lg flex items-center justify-center">
+              <span className="text-white text-sm bg-black/50 px-2 py-1 rounded">
+                Align text within frame
+              </span>
+            </div>
+          </div>
+        </div>
       </div>
 
-      <div className="p-4 flex justify-center gap-4">
-        {step === "vin" && (
-          <Button variant="outline" onClick={handleSkipVin} disabled={isProcessing}>
-            <SkipForward className="h-4 w-4 mr-1" /> Skip VIN
-          </Button>
-        )}
-        <Button size="lg" onClick={handleCapture} disabled={!isCameraActive || isProcessing} className="rounded-full w-16 h-16 p-0">
+      <div className="p-4 flex justify-center">
+        <Button 
+          size="lg" 
+          onClick={handleCapture} 
+          disabled={!isCameraActive || isProcessing} 
+          className="rounded-full w-16 h-16 p-0"
+        >
           <Camera className="h-6 w-6" />
         </Button>
       </div>
     </div>
   );
 
-/* ─────────────── Preview overlay ─────────────── */
-const PreviewOverlay = (
-  <div className="flex flex-col pt-16 pb-10 px-6">
-    {isProcessing ? (
-      <div className="text-center py-8">Processing OCR…</div>
-    ) : (
-      <>
-        <div className="space-y-4 mb-6">
-          <div>
-            <label className="text-sm font-medium block mb-1">VIN</label>
-            <input
-              type="text"
-              className="w-full p-2 border rounded-md text-sm font-mono"
-              value={vinText}
-              onChange={handleChange('vin')}
-            />
+  /* ─────────────── Preview overlay ─────────────── */
+  const PreviewOverlay = (
+    <div className="flex flex-col pt-16 pb-10 px-6">
+      {isProcessing ? (
+        <div className="text-center py-8">Processing image...</div>
+      ) : (
+        <>
+          <div className="space-y-4 mb-6">
+            <div>
+              <label className="text-sm font-medium block mb-1">VIN</label>
+              <input
+                type="text"
+                className="w-full p-2 border rounded-md text-sm font-mono"
+                value={vinText}
+                onChange={handleChange('vin')}
+                placeholder="VIN (optional)"
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium block mb-1">Part Number</label>
+              <input
+                type="text"
+                className="w-full p-2 border rounded-md text-sm font-mono"
+                value={partText}
+                onChange={handleChange('part')}
+                placeholder="Part number"
+              />
+            </div>
           </div>
-          <div>
-            <label className="text-sm font-medium block mb-1">
-              Part Number
-            </label>
-            <input
-              type="text"
-              className="w-full p-2 border rounded-md text-sm font-mono"
-              value={partText}
-              onChange={handleChange('part')}
-            />
-          </div>
-        </div>
 
-        {/* Add margin-top to keep this row clear of the inputs */}
-        <div className="flex justify-between mt-4">
-          <Button variant="outline" onClick={handleRetakeAll}>
-            Retake
-          </Button>
-          <Button onClick={handleConfirm} disabled={isProcessing}>
-            <CheckCircle className="h-4 w-4 mr-2" /> Confirm
-          </Button>
-        </div>
-      </>
-    )}
-  </div>
-);
+          <div className="flex justify-between mt-4">
+            <Button variant="outline" onClick={handleRetake}>
+              Retake
+            </Button>
+            <Button onClick={handleConfirm} disabled={isProcessing}>
+              <CheckCircle className="h-4 w-4 mr-2" /> Confirm
+            </Button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+
   /* ─────────────── Component render ─────────────── */
   return (
     <Dialog
       open={isOpen}
       onOpenChange={(open) => {
         if (!open) {
-          // Cleanup when closing
           if (isCameraActive && videoRef.current?.srcObject) {
             (videoRef.current.srcObject as MediaStream).getTracks().forEach((t) => t.stop());
           }
-          handleRetakeAll();
+          handleRetake();
           onClose();
         }
       }}
@@ -247,8 +230,7 @@ const PreviewOverlay = (
         <DialogHeader className="p-4 absolute top-0 left-0 right-0 z-10 bg-background/80 backdrop-blur-sm">
           <div className="flex items-center justify-between">
             <DialogTitle>
-              {step === "part" && "Scan Part Number"}
-              {step === "vin" && "Scan VIN (optional)"}
+              {step === "camera" && "Capture Image"}
               {step === "preview" && "Confirm Details"}
             </DialogTitle>
             <Button variant="ghost" size="icon" onClick={onClose}>
@@ -260,9 +242,8 @@ const PreviewOverlay = (
         <div className="relative overflow-hidden rounded-b-lg">
           {step === "preview" ? PreviewOverlay : CameraOverlay}
 
-          {/* Hidden canvases */}
-          <canvas ref={frameCanvasRef} className="hidden" />
-          <canvas ref={boxCanvasRef} className="hidden" />
+          {/* Hidden canvas for image capture */}
+          <canvas ref={canvasRef} className="hidden" />
         </div>
       </DialogContent>
     </Dialog>

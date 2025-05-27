@@ -165,6 +165,48 @@ export async function deletePartByPartNumber(partID: string): Promise<{ success:
   }
 }
 
+// Process image through OCR backend
+export async function processImageOCR(imageFile: File): Promise<{ success: boolean; vin?: string; partNumber?: string; error?: string }> {
+  try {
+    const formData = new FormData();
+    formData.append('image', imageFile);
+
+    console.log("[API] Attempting to process image via OCR. URL:", `${API_BASE_URL}/ocr/process_image`);
+
+    const response = await fetch(`${API_BASE_URL}/ocr/process_image`, {
+      method: 'POST',
+      headers: {
+        'ngrok-skip-browser-warning': 'true'
+      },
+      body: formData,
+    });
+
+    if (!response.ok) {
+      let errorMessage = `HTTP error ${response.status}`;
+      try {
+        const errorData = await response.json();
+        errorMessage = errorData.message || errorMessage;
+      } catch (e) {
+        // Ignore if response is not JSON
+      }
+      console.error("Error processing image:", errorMessage);
+      return { success: false, error: errorMessage };
+    }
+
+    const responseData = await response.json();
+    console.log("Image processed successfully:", responseData);
+    return { 
+      success: true, 
+      vin: responseData.vin, 
+      partNumber: responseData.part_number 
+    };
+
+  } catch (error) {
+    console.error("[API] Fetch error in processImageOCR:", error);
+    return { success: false, error: error instanceof Error ? error.message : "An unknown error occurred" };
+  }
+}
+
 // Mock data for scan history
 const mockScanData: ScanType[] = [
   {
