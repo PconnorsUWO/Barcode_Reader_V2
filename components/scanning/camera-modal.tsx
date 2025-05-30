@@ -66,15 +66,18 @@ export function CameraModal({ isOpen, onClose, onImageCaptured }: CameraModalPro
   }, [isOpen, step]);
 
   /* ─────────────── Convert canvas to File ─────────────── */
-  const canvasToFile = (canvas: HTMLCanvasElement): File => {
-    return new Promise((resolve) => {
-      canvas.toBlob((blob) => {
-        if (blob) {
-          resolve(new File([blob], 'capture.jpg', { type: 'image/jpeg' }));
-        }
-      }, 'image/jpeg', 0.8);
-    }) as Promise<File>;
-  };
+const canvasToFile = async (canvas: HTMLCanvasElement): Promise<File> => {
+  return new Promise<File>((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (blob) {
+        resolve(new File([blob], 'capture.jpg', { type: 'image/jpeg' }));
+      } else {
+        reject(new Error('Could not convert canvas to blob'));
+      }
+    }, 'image/jpeg');
+  });
+};
+
 
   /* ─────────────── Capture image and process with backend OCR ─────────────── */
   const handleCapture = async () => {

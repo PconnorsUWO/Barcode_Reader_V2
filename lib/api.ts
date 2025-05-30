@@ -1,7 +1,7 @@
 import { ScanType } from "@/lib/types";
 
 // base URL for the API
-const API_BASE_URL = "https://7e50-2607-fea8-439d-ba00-941f-7d50-a1d9-1335.ngrok-free.app/api";
+const API_BASE_URL = "https://www.rfscans.ca/api";
 
 // Fetch scans from the API
 export async function fetchScans(limit?: number): Promise<ScanType[]> {
@@ -73,7 +73,6 @@ export async function submitScan(payload: SubmitScanPayload): Promise<{ success:
         const errorData = await response.json();
         errorMessage = errorData.message || errorMessage;
       } catch (e) {
-        // Ignore if response is not JSON
       }
       console.error("Error submitting scan:", errorMessage);
       return { success: false, error: errorMessage };

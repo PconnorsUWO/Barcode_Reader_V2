@@ -20,6 +20,7 @@ export function BarcodeScanner({ onScanSuccess, onScanError, onClose }: BarcodeS
 
   // Initialize scanner when component mounts
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     if (containerRef.current) {
       scannerRef.current = new Html5Qrcode("scanner-container");
       
