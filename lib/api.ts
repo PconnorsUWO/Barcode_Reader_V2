@@ -1,6 +1,7 @@
 import { ScanType } from "@/lib/types";
 
-// base URL for the API
+// Use relative URL when deployed with Flask
+// const API_BASE_URL = "https://7e50-2607-fea8-439d-ba00-941f-7d50-a1d9-1335.ngrok-free.app/api";
 const API_BASE_URL = "https://www.rfscans.ca/api";
 
 // Fetch scans from the API
@@ -47,7 +48,6 @@ interface SubmitScanPayload {
   vin?: string;
 }
 
-// Updated API endpoint for submitting a new scan
 export async function submitScan(payload: SubmitScanPayload): Promise<{ success: boolean; data?: any; error?: string }> {
   try {
     const backendPayload = {
@@ -86,6 +86,35 @@ export async function submitScan(payload: SubmitScanPayload): Promise<{ success:
     console.error("[API] Fetch error in submitScan:", error); // Enhanced log
     return { success: false, error: error instanceof Error ? error.message : "An unknown error occurred" };
   }
+}
+
+// Fire-and-forget submission for fast scanning
+export function submitScanFireAndForget(payload: SubmitScanPayload): void {
+  const backendPayload = {
+    part_number: payload.partNumber,
+    location: payload.location,
+    vin: payload.vin || null,
+  };
+
+  console.log("[API] Fire-and-forget scan submission:", backendPayload);
+
+  // Don't await this - fire and forget
+  fetch(`${API_BASE_URL}/send_scan`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'ngrok-skip-browser-warning': 'true'
+    },
+    body: JSON.stringify(backendPayload),
+  }).then(response => {
+    if (response.ok) {
+      console.log("[API] Scan submitted successfully (fire-and-forget)");
+    } else {
+      console.warn("[API] Scan submission may have failed (fire-and-forget):", response.status);
+    }
+  }).catch(error => {
+    console.warn("[API] Scan submission error  (fire-and-forget):", error);
+  });
 }
 
 // Delete a scan by its ID
@@ -164,7 +193,129 @@ export async function deletePartByPartNumber(partID: string): Promise<{ success:
   }
 }
 
-// Process image through OCR backend
+// Fetch vehicle by VIN
+export async function fetchVehicleByVin(vin: string): Promise<{ success: boolean; data?: any; error?: string }> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/vehicle/${vin.toUpperCase()}`, {
+      headers: {
+        'ngrok-skip-browser-warning': 'true'
+      }
+    });
+
+    if (!response.ok) {
+      let errorMessage = `HTTP error ${response.status}`;
+      try {
+        const errorData = await response.json();
+        errorMessage = errorData.message || errorMessage;
+      } catch (e) {
+        // Ignore if response is not JSON
+      }
+      return { success: false, error: errorMessage };
+    }
+
+    const data = await response.json();
+    return { success: true, data: data.vehicle };
+  } catch (error) {
+    console.error("[API] Fetch error in fetchVehicleByVin:", error);
+    return { success: false, error: error instanceof Error ? error.message : "An unknown error occurred" };
+  }
+}
+
+// Fetch parts by VIN
+export async function fetchPartsByVin(vin: string): Promise<{ success: boolean; data?: any; error?: string }> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/vehicle/${vin.toUpperCase()}/parts`, {
+      headers: {
+        'ngrok-skip-browser-warning': 'true'
+      }
+    });
+
+    if (!response.ok) {
+      let errorMessage = `HTTP error ${response.status}`;
+      try {
+        const errorData = await response.json();
+        errorMessage = errorData.message || errorMessage;
+      } catch (e) {
+        // Ignore if response is not JSON
+      }
+      return { success: false, error: errorMessage };
+    }
+
+    const data = await response.json();
+    return { success: true, data: data.parts };
+  } catch (error) {
+    console.error("[API] Fetch error in fetchPartsByVin:", error);
+    return { success: false, error: error instanceof Error ? error.message : "An unknown error occurred" };
+  }
+}
+
+// Fetch vehicles by part number
+export async function fetchVehiclesByPartNumber(partNumber: string): Promise<{ success: boolean; data?: any; error?: string }> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/part/${partNumber}/vehicles`, {
+      headers: {
+        'ngrok-skip-browser-warning': 'true'
+      }
+    });
+
+    if (!response.ok) {
+      let errorMessage = `HTTP error ${response.status}`;
+      try {
+        const errorData = await response.json();
+        errorMessage = errorData.message || errorMessage;
+      } catch (e) {
+        // Ignore if response is not JSON
+      }
+      return { success: false, error: errorMessage };
+    }
+
+    const data = await response.json();
+    return { success: true, data: data.vehicles };
+  } catch (error) {
+    console.error("[API] Fetch error in fetchVehiclesByPartNumber:", error);
+    return { success: false, error: error instanceof Error ? error.message : "An unknown error occurred" };
+  }
+}
+
+// Download inventory report
+export async function downloadInventoryReport(): Promise<{ success: boolean; error?: string }> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/admin/reports/generate_inventory_excel`, {
+      headers: {
+        'ngrok-skip-browser-warning': 'true'
+      }
+    });
+
+    if (!response.ok) {
+      let errorMessage = `HTTP error ${response.status}`;
+      try {
+        const errorData = await response.json();
+        errorMessage = errorData.message || errorMessage;
+      } catch (e) {
+        // Ignore if response is not JSON
+      }
+      return { success: false, error: errorMessage };
+    }
+
+    // Create blob from response
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.style.display = 'none';
+    a.href = url;
+    a.download = `inventory_report_${new Date().toISOString().split('T')[0]}.xlsx`;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+
+    return { success: true };
+  } catch (error) {
+    console.error("[API] Fetch error in downloadInventoryReport:", error);
+    return { success: false, error: error instanceof Error ? error.message : "An unknown error occurred" };
+  }
+}
+
 export async function processImageOCR(imageFile: File): Promise<{ success: boolean; vin?: string; partNumber?: string; error?: string }> {
   try {
     const formData = new FormData();
@@ -205,7 +356,6 @@ export async function processImageOCR(imageFile: File): Promise<{ success: boole
     return { success: false, error: error instanceof Error ? error.message : "An unknown error occurred" };
   }
 }
-
 // Mock data for scan history
 const mockScanData: ScanType[] = [
   {
@@ -240,3 +390,54 @@ const mockScanData: ScanType[] = [
   }
 ];
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Fetch *all* parts in the DB
+// ─────────────────────────────────────────────────────────────────────────────
+export async function fetchAllParts(): Promise<{ success: boolean; data?: any; error?: string }> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/parts`, {
+      headers: { 'ngrok-skip-browser-warning': 'true' }
+    });
+
+    if (!response.ok) {
+      let errorMessage = `HTTP error ${response.status}`;
+      try {
+        const errorData = await response.json();
+        errorMessage = errorData.message || errorMessage;
+      } catch { /* non-JSON */ }
+      return { success: false, error: errorMessage };
+    }
+
+    const data = await response.json();           // { status: 'success', parts: [...] }
+    return { success: true, data: data.parts };
+  } catch (error) {
+    console.error("[API] Fetch error in fetchAllParts:", error);
+    return { success: false, error: error instanceof Error ? error.message : "An unknown error occurred" };
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Fetch parts that share a specific part number
+// ─────────────────────────────────────────────────────────────────────────────
+export async function fetchPartsByPartNumber(partNumber: string): Promise<{ success: boolean; data?: any; error?: string }> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/parts/${encodeURIComponent(partNumber)}`, {
+      headers: { 'ngrok-skip-browser-warning': 'true' }
+    });
+
+    if (!response.ok) {
+      let errorMessage = `HTTP error ${response.status}`;
+      try {
+        const errorData = await response.json();
+        errorMessage = errorData.message || errorMessage;
+      } catch { /* non-JSON */ }
+      return { success: false, error: errorMessage };
+    }
+
+    const data = await response.json();           // { status: 'success', parts: [...] }
+    return { success: true, data: data.parts };
+  } catch (error) {
+    console.error("[API] Fetch error in fetchPartsByNumber:", error);
+    return { success: false, error: error instanceof Error ? error.message : "An unknown error occurred" };
+  }
+}

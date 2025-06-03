@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { CircleUser, Menu, ScanLine, Clock, Settings, Edit3 } from "lucide-react"; // Added Edit3 for manual entry
+import { CircleUser, Menu, ScanLine, Clock, Settings, Edit3, Search } from "lucide-react"; // Added Search
 
 import { ModeToggle } from "@/components/ui/mode-toggle";
 import { Button } from "@/components/ui/button";
@@ -32,8 +32,14 @@ const routes = [
     active: (path: string) => path === "/history",
   },
   {
-    label: "Manual Entry (Test)",
-    icon: Edit3, // Using Edit3 icon, you can choose another
+    label: "Search",
+    icon: Search,
+    href: "/search",
+    active: (path: string) => path === "/search",
+  },
+  {
+    label: "Manual Entry",
+    icon: Edit3,
     href: "/manual-entry",
     active: (path: string) => path === "/manual-entry",
   },

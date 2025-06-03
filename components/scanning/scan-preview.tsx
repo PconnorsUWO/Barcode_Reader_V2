@@ -7,17 +7,14 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { ScanType } from "@/lib/types";
 import { useState } from "react";
-import { submitScan } from "@/lib/api";
+import { submitScanFireAndForget } from "@/lib/api";
 
 interface ScanPreviewProps {
   scanData: ScanType;
   onScanAgain: () => void;
-  // Add a prop for showing toast notifications if you have a toast system
-  // showToast: (message: string, type: 'success' | 'error') => void;
 }
 
-export function ScanPreview({ scanData, onScanAgain /*, showToast */ }: ScanPreviewProps) {
-  const [isSubmitting, setIsSubmitting] = useState(false);
+export function ScanPreview({ scanData, onScanAgain }: ScanPreviewProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editedData, setEditedData] = useState({
     partNumber: scanData.partNumber,
@@ -26,38 +23,22 @@ export function ScanPreview({ scanData, onScanAgain /*, showToast */ }: ScanPrev
 
   const handleSave = () => {
     setIsEditing(false);
-    // Optionally, you could update scanData here if it's part of a larger state
-    // For now, editedData is used directly for submission
   };
 
-  const handleSubmit = async () => {
-    setIsSubmitting(true);
-    try {
-      const payloadToSubmit = {
-        partNumber: editedData.partNumber,
-        location: scanData.location, // Location comes from the original scanData
-        vin: editedData.vin || undefined, // Send undefined if empty, api.ts will handle null
-      };
+  const handleSubmit = () => {
+    const payloadToSubmit = {
+      partNumber: editedData.partNumber,
+      location: scanData.location,
+      vin: editedData.vin || undefined,
+    };
 
-      console.log("[ScanPreview] handleSubmit called. Payload to submit:", payloadToSubmit); // Added log
-
-      const result = await submitScan(payloadToSubmit);
-
-      if (result.success) {
-        // showToast("Scan submitted successfully!", "success"); // Example toast
-        console.log("Scan submitted successfully, API response:", result.data);
-        // Return to scanning view
-        onScanAgain();
-      } else {
-        // showToast(`Error: ${result.error || "Failed to submit scan."}`, "error"); // Example toast
-        console.error("Failed to submit scan:", result.error);
-      }
-    } catch (error) {
-      console.error("Error during submission process:", error);
-      // showToast("An unexpected error occurred.", "error"); // Example toast
-    } finally {
-      setIsSubmitting(false);
-    }
+    console.log("[ScanPreview] Fire-and-forget submission:", payloadToSubmit);
+    
+    // Submit without waiting for response
+    submitScanFireAndForget(payloadToSubmit);
+    
+    // Immediately return to scanning
+    onScanAgain();
   };
 
   return (
@@ -78,7 +59,7 @@ export function ScanPreview({ scanData, onScanAgain /*, showToast */ }: ScanPrev
               <Input
                 id="partNumber"
                 value={editedData.partNumber}
-                onChange={(e) => setEditedData({ ...editedData, partNumber: e.target.value.toUpperCase() })} // Convert to uppercase if needed
+                onChange={(e) => setEditedData({ ...editedData, partNumber: e.target.value.toUpperCase() })}
               />
             </div>
             <div className="space-y-2">
@@ -86,7 +67,7 @@ export function ScanPreview({ scanData, onScanAgain /*, showToast */ }: ScanPrev
               <Input
                 id="vin"
                 value={editedData.vin}
-                onChange={(e) => setEditedData({ ...editedData, vin: e.target.value.toUpperCase() })} // Convert to uppercase
+                onChange={(e) => setEditedData({ ...editedData, vin: e.target.value.toUpperCase() })}
                 placeholder="17-character alphanumeric"
                 maxLength={17}
               />
@@ -99,11 +80,10 @@ export function ScanPreview({ scanData, onScanAgain /*, showToast */ }: ScanPrev
               <span className="text-lg font-bold">{editedData.partNumber}</span>
             </div>
             
-            {/* Display VIN if it exists in editedData or original scanData */}
-            {(editedData.vin || (scanData.vin && !isEditing)) && (
+            {editedData.vin && (
               <div className="flex flex-col gap-1">
                 <span className="text-sm font-medium text-muted-foreground">VIN</span>
-                <span className="font-mono">{editedData.vin || scanData.vin}</span>
+                <span className="font-mono">{editedData.vin}</span>
               </div>
             )}
             
@@ -140,10 +120,9 @@ export function ScanPreview({ scanData, onScanAgain /*, showToast */ }: ScanPrev
               <Button 
                 size="sm"
                 onClick={handleSubmit}
-                disabled={isSubmitting}
               >
                 <Send className="h-4 w-4 mr-2" />
-                {isSubmitting ? "Sending..." : "Send"}
+                Send & Continue
               </Button>
             </div>
           </>
